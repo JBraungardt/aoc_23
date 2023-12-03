@@ -1,0 +1,228 @@
+# Advent of Code - Day 02
+
+```elixir
+Mix.install([
+  {:kino_aoc, "~> 0.1"}
+])
+```
+
+## Introduction
+
+--> Content
+
+## Puzzle
+
+<!-- livebook:{"attrs":"eyJhc3NpZ25fdG8iOiJwdXp6bGVfaW5wdXQiLCJkYXkiOiIyIiwic2Vzc2lvbl9zZWNyZXQiOiJBT0NfU0VTU0lPTiIsInllYXIiOiIyMDIzIn0","chunks":null,"kind":"Elixir.KinoAOC.HelperCell","livebook_object":"smart_cell"} -->
+
+```elixir
+{:ok, puzzle_input} =
+  KinoAOC.download_puzzle("2023", "2", System.fetch_env!("LB_AOC_SESSION"))
+```
+
+## Parser
+
+### Code - Parser
+
+```elixir
+defmodule Game do
+  defstruct [:id, :draws]
+
+  def valid?(%Game{draws: draws}, bag) do
+    Enum.map(draws, fn draw ->
+      Enum.map(draw, fn {color, value} -> bag[color] >= value end)
+      |> Enum.all?()
+    end)
+    |> Enum.all?()
+  end
+end
+```
+
+```elixir
+defmodule Parser do
+  def parse(input) do
+    [game_str, games] = String.split(input, ":")
+    %Game{id: parse_game_str(game_str), draws: parse_games(games)}
+  end
+
+  defp parse_game_str(game_str) do
+    Regex.run(~r/Game (\d+)/, game_str, capture: :all_but_first)
+    |> hd()
+    |> String.to_integer()
+  end
+
+  defp parse_games(games) do
+    games
+    |> String.split(";")
+    |> Enum.map(fn draw ->
+      draw
+      |> String.split(",")
+      |> Enum.map(&String.trim(&1))
+      |> parse_draw()
+    end)
+  end
+
+  defp parse_draw(draw) do
+    draw
+    |> Enum.into(%{}, fn r ->
+      [number, color] = Regex.run(~r/(\d+) (\w)/, r, capture: :all_but_first)
+      {String.to_atom(color), String.to_integer(number)}
+    end)
+  end
+end
+```
+
+### Tests - Parser
+
+```elixir
+ExUnit.start(autorun: false)
+
+defmodule ParserTest do
+  use ExUnit.Case, async: true
+  import Parser
+
+  @input "Game 4: 1 green, 3 red, 6 blue; 3 green, 6 red; 3 green, 15 blue, 14 red"
+  @expected %Game{id: 4, draws: [%{r: 3, b: 6, g: 1}, %{r: 6, g: 3}, %{r: 14, b: 15, g: 3}]}
+
+  test "parse test" do
+    actual = parse(@input)
+    assert actual == @expected
+  end
+end
+
+ExUnit.run()
+```
+
+<!-- livebook:{"branch_parent_index":2} -->
+
+## Part One
+
+### Code - Part 1
+
+```elixir
+defmodule PartOne do
+  def solve(input, bag) do
+    IO.puts("--- Part One ---")
+    IO.puts("Result: #{run(input, bag)}")
+  end
+
+  def run(input, bag) do
+    input
+    |> String.split("\n")
+    |> Enum.map(&Parser.parse(&1))
+    |> Enum.filter(fn game -> Game.valid?(game, bag) end)
+    |> Enum.map(fn %Game{id: id} -> id end)
+    |> IO.inspect()
+    |> Enum.sum()
+  end
+end
+```
+
+### Tests - Part 1
+
+```elixir
+ExUnit.start(autorun: false)
+
+defmodule PartOneTest do
+  use ExUnit.Case, async: true
+  import PartOne
+
+  @input "Game 1: 3 blue, 4 red; 1 red, 2 green, 6 blue; 2 green
+Game 2: 1 blue, 2 green; 3 green, 4 blue, 1 red; 1 green, 1 blue
+Game 3: 8 green, 6 blue, 20 red; 5 blue, 4 red, 13 green; 5 green, 1 red
+Game 4: 1 green, 3 red, 6 blue; 3 green, 6 red; 3 green, 15 blue, 14 red
+Game 5: 6 red, 1 blue, 3 green; 2 blue, 1 red, 2 green"
+  @expected 8
+
+  test "part one" do
+    actual = run(@input, %{r: 12, g: 13, b: 14})
+    assert actual == @expected
+  end
+end
+
+ExUnit.run()
+```
+
+### Solution - Part 1
+
+```elixir
+PartOne.solve(puzzle_input, %{r: 12, g: 13, b: 14})
+```
+
+<!-- livebook:{"branch_parent_index":2} -->
+
+## Part Two
+
+### Code - Part 2
+
+```elixir
+defmodule PartTwo do
+  def solve(input) do
+    IO.puts("--- Part Two ---")
+    IO.puts("Result: #{run(input)}")
+  end
+
+  def run(input) do
+    input
+    |> String.split("\n")
+    |> Enum.map(&Parser.parse(&1))
+    |> Enum.map(fn %Game{draws: draws} ->
+      Enum.reduce(draws, %{r: 0, g: 0, b: 0}, fn d, accu ->
+        accu =
+          case accu.r < Map.get(d, :r, 0) do
+            true -> Map.replace(accu, :r, d.r)
+            _ -> accu
+          end
+
+        accu =
+          case accu.g < Map.get(d, :g, 0) do
+            true -> Map.replace(accu, :g, d.g)
+            _ -> accu
+          end
+
+        accu =
+          case accu.b < Map.get(d, :b, 0) do
+            true -> Map.replace(accu, :b, d.b)
+            _ -> accu
+          end
+
+        accu
+      end)
+    end)
+    |> Enum.map(fn %{r: r, g: g, b: b} -> r * g * b end)
+    |> Enum.sum()
+  end
+end
+```
+
+### Tests - Part 2
+
+```elixir
+ExUnit.start(autorun: false)
+
+defmodule PartTwoTest do
+  use ExUnit.Case, async: true
+  import PartTwo
+
+  @input "Game 1: 3 blue, 4 red; 1 red, 2 green, 6 blue; 2 green
+Game 2: 1 blue, 2 green; 3 green, 4 blue, 1 red; 1 green, 1 blue
+Game 3: 8 green, 6 blue, 20 red; 5 blue, 4 red, 13 green; 5 green, 1 red
+Game 4: 1 green, 3 red, 6 blue; 3 green, 6 red; 3 green, 15 blue, 14 red
+Game 5: 6 red, 1 blue, 3 green; 2 blue, 1 red, 2 green"
+  @expected 2286
+
+  test "part two" do
+    actual = run(@input)
+    assert actual == @expected
+  end
+end
+
+ExUnit.run()
+```
+
+### Solution - Part 2
+
+```elixir
+PartTwo.solve(puzzle_input)
+```
+
+<!-- livebook:{"offset":4695,"stamp":{"token":"XCP.hc3iLncoiYzhx_j9NYtHPx57FNpiZ1oPAbD9fV-gSoiRAfLHIeG8fiqgE6fvHejBneu70ozu2JfTD1VFyy3xLHCXZltLwwIr-gUJnkMa6mjkCInQGWk","version":2}} -->
